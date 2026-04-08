@@ -17,7 +17,7 @@
 # Or you can write it in one line:
 #     TEST_CASES='test_displays_usage' GIT_FTP_PASSWD='s3cr3t' ./git-ftp-test.sh
 
-readonly VERSION='1.6.0'
+readonly VERSION='1.6.2'
 
 # ------------------------------------------------------------
 # Constant Exit Error Codes
@@ -1253,6 +1253,70 @@ test_submodule_catchup() {
 	git commit -m 'adding submodule' -q
 	catchup=$($GIT_FTP catchup)
 	assertTrue "test failed: $submodule/.git-ftp.log not there as expected" "remote_file_exists '$submodule/.git-ftp.log'"
+}
+
+test_submodule_inherits_parent_git_ftp_settings() {
+	submodule='sub'
+	mkdir "$submodule"
+	cd "$submodule"
+	touch file.txt
+	git init -q
+	git add .
+	git commit -m 'initial submodule commit' -q
+	git config git-ftp.deployedsha1file 'submodule.log'
+	git config git-ftp.remote-root 'wrong-root'
+	git config git-ftp.branch 'missing-branch'
+	git config git-ftp.syncroot 'missing-syncroot'
+	cd ..
+	git submodule -q add "/$submodule" > /dev/null
+	git commit -m 'adding submodule' -q
+	catchup="$($GIT_FTP_CMD catchup -D -v ftp://example.com/root 2>&1)"
+	assertEquals 0 $?
+	assertContains 'ftp://example.com/root/sub/.git-ftp.log' "$catchup"
+	assertFalse "$catchup" "echo \"$catchup\" | grep 'ftp://example.com/root/sub/submodule.log'"
+	assertFalse "$catchup" "echo \"$catchup\" | grep 'ftp://example.com/root/wrong-root/sub/.git-ftp.log'"
+}
+
+test_push_checks_submodules_when_superproject_is_up_to_date() {
+	submodule='sub'
+	file='file.txt'
+	mkdir "$submodule"
+	cd "$submodule"
+	touch "$file"
+	git init -q
+	git add .
+	git commit -m 'initial submodule commit' -q
+	cd ..
+	git submodule -q add "/$submodule" > /dev/null
+	git commit -m 'adding submodule' -q
+	local_sha1="$(git log -n 1 --pretty=format:%H)"
+	push="$($GIT_FTP_CMD push -D -v -c "$local_sha1" ftp://localhost:1/root 2>&1)"
+	assertContains 'Checking submodules.' "$push"
+	assertContains 'Handling submodule sync for sub.' "$push"
+	assertFalse "$push" "echo \"$push\" | grep 'Everything up-to-date.'"
+}
+
+test_submodule_catchup_uses_relative_remote_paths() {
+	mkdir sub1 sub2
+	cd sub1
+	touch file.txt
+	git init -q
+	git add .
+	git commit -m 'initial submodule one commit' -q
+	cd ..
+	cd sub2
+	touch file.txt
+	git init -q
+	git add .
+	git commit -m 'initial submodule two commit' -q
+	cd ..
+	git submodule -q add ./sub1 sub1 > /dev/null
+	git submodule -q add ./sub2 sub2 > /dev/null
+	git commit -m 'adding submodules' -q
+	catchup="$($GIT_FTP_CMD catchup -D -v ftp://example.com/root 2>&1)"
+	assertContains 'ftp://example.com/root/sub1/.git-ftp.log' "$catchup"
+	assertContains 'ftp://example.com/root/sub2/.git-ftp.log' "$catchup"
+	assertFalse "$catchup" "echo \"$catchup\" | grep 'ftp://example.com/root/\./'"
 }
 
 test_submodule_syncroot() {

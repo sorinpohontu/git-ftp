@@ -1,5 +1,18 @@
-Version 1.6.0-UNRELEASED
-=============
+Version 1.6.2-UNRELEASED
+========================
+* Fix recursive submodule catchup to use normalized remote paths
+* Make recursive submodule runs inherit parent git-ftp settings
+* Make push continue checking submodules when the superproject is already up-to-date
+* Add regression tests for submodule path handling, settings inheritance, and push recursion
+
+Version 1.6.1
+============
+* Fix skip buffered uploads for files scheduled for deletion (PR #677)
+* New action: dirty-upload (PR #625)
+* Fix catchup with submodules (PR #619)
+
+Version 1.6.0
+============
 
 * Change exit code when remote cannot be accessed from 5 (ERROR_DOWNLOAD) to 4 (ERROR_UPLOAD)
 * Fix directory creation with SFTP

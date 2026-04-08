@@ -1,8 +1,8 @@
-% GIT-FTP(1) Git-ftp 1.6.0
+% GIT-FTP(1) Git-ftp 1.6.2-UNRELEASED
 %
 % 2020-02-03
 
-This is the manual for version 1.6.0-UNRELEASED.
+This is the manual for version 1.6.2-UNRELEASED.
 Please consider the [changelog](../CHANGELOG.md) or select your version from
 the _Branch > Tags_ select above to see the manual for another version.
 
@@ -36,15 +36,24 @@ different and handles only those files. That saves time and bandwidth.
 :	Creates or updates the `.git-ftp.log` file on the remote host.
 	It assumes that you uploaded all other files already.
 	You might have done that with another program.
+	If the repository contains tracked Git submodules,
+	`catchup` also updates their deployed state recursively.
+	Recursive submodule runs inherit the parent repository's `git-ftp`
+	settings.
 
 `push`
 :	Uploads files that have changed and
 	deletes files that have been deleted since the last upload.
-	If you are using GIT LFS, this uploads LFS link files, 
-	not large files (stored on LFS server). 
+	If the repository contains tracked Git submodules,
+	`push` also checks them recursively,
+	even when the superproject itself is already up-to-date.
+	Recursive submodule runs inherit the parent repository's `git-ftp`
+	settings.
+	If you are using GIT LFS, this uploads LFS link files,
+	not large files (stored on LFS server).
 	To upload the LFS tracked files, run `git lfs pull`
-	before `git ftp push`: LFS link files will be replaced with 
-	large files so they can be uploaded.  
+	before `git ftp push`: LFS link files will be replaced with
+	large files so they can be uploaded.
 
 `download` (EXPERIMENTAL)
 :	Downloads changes from the remote host into your working tree.
