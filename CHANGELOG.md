@@ -3,6 +3,15 @@ Version 1.6.2-UNRELEASED
 * Fix recursive submodule catchup to use normalized remote paths
 * Make recursive submodule runs inherit parent git-ftp settings
 * Make push continue checking submodules when the superproject is already up-to-date
+* Fix `--branch=value` parsing (single-quoted expr prevented variable expansion)
+* Fix spurious shift in `--no-verify`, `--no-post-hooks`, `--enable-post-errors` flag handlers consuming next argument
+* Fix remote locking broken on macOS due to GNU-only `hostname --fqdn` and `date --utc --rfc-2822` flags
+* Fix remote lock file containing literal `\n` instead of a real newline
+* Fix unquoted variables causing word splitting risk (`$REMOTE_USER`, `$REMOTE_CACERT`, `$REMOTE_PATH`, `$DEPLOYED_SHA1`, `MERGE_ARGS`)
+* Convert `MERGE_ARGS` from string to array for correct multi-word flag handling
+* Add trap cleanup EXIT INT TERM to ensure temp directory is removed on signals
+* Replace `[ ! -z` with `[ -n` for clarity
+* Normalize `==` to `=` inside `[ ]` for POSIX consistency
 * Add regression tests for submodule path handling, settings inheritance, and push recursion
 
 Version 1.6.1

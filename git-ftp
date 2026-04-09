@@ -24,7 +24,7 @@
 readonly DEFAULT_PROTOCOL="ftp"
 readonly REMOTE_LCK_FILE="$(basename "$0").lck"
 readonly SYSTEM="$(uname)"
-readonly VERSION='1.6.1'
+readonly VERSION='1.6.2-UNRELEASED'
 
 # ------------------------------------------------------------
 # Defaults
@@ -480,6 +480,7 @@ print_info() {
 cleanup() {
 	rm -rf "$TMP_DIR"
 }
+trap cleanup EXIT INT TERM
 
 set_default_curl_options() {
 	OIFS="$IFS"
@@ -640,11 +641,11 @@ remote_lock() {
 	[ $ENABLE_REMOTE_LCK -ne 1 ] && return
 	[ $FORCE -ne 1 ] && check_remote_lock
 
-	local LCK_MESSAGE="${USER}@$(hostname --fqdn) on $(date --utc --rfc-2822)"
+	local LCK_MESSAGE="${USER}@$(hostname) on $(date -u)"
 
 	write_log "Remote locking $LCK_MESSAGE."
 	if [ $DRY_RUN -ne 1 ]; then
-		echo "${LOCAL_SHA1}\n${LCK_MESSAGE}" | upload_file - "$REMOTE_LCK_FILE"
+		printf '%s\n%s\n' "${LOCAL_SHA1}" "${LCK_MESSAGE}" | upload_file - "$REMOTE_LCK_FILE"
 		check_exit_status "Could not upload remote lock file." "$ERROR_UPLOAD"
 	fi
 }
@@ -668,7 +669,7 @@ set_remote_protocol() {
 	CURL_PROTOCOL="$REMOTE_PROTOCOL"
 
 	# Protocol found?
-	if [ ! -z "$REMOTE_PROTOCOL" ]; then
+	if [ -n "$REMOTE_PROTOCOL" ]; then
 		REMOTE_PATH=$(echo "$URL" | cut -d '/' -f 4-)
 		handle_remote_protocol_options
 		return
@@ -696,13 +697,13 @@ set_remote_path() {
 			REMOTE_ROOT="$(get_config remote-root)"
 		fi
 	fi
-	if [ ! -z "$REMOTE_ROOT" ]; then
+	if [ -n "$REMOTE_ROOT" ]; then
 		! echo "$REMOTE_ROOT" | grep -E -q "/$" && REMOTE_ROOT="$REMOTE_ROOT/"
 		REMOTE_PATH="$REMOTE_ROOT$REMOTE_PATH"
 	fi
 
 	# Add trailing slash if missing
-	if [ ! -z "$REMOTE_PATH" ] && ! echo "$REMOTE_PATH" | grep -E -q "/$"; then
+	if [ -n "$REMOTE_PATH" ] && ! echo "$REMOTE_PATH" | grep -E -q "/$"; then
 		write_log "Added missing trailing / in path."
 		REMOTE_PATH="$REMOTE_PATH/"
 	fi
@@ -776,12 +777,12 @@ list_changed_files() {
 		if [ "$ANSWER_STATE" != "y" ] && [ "$ANSWER_STATE" != "Y" ]; then
 			print_info "Aborting..."
 			cleanup
-			test "$ANSWER_STATE" == "" && exit "$ERROR_USAGE"
+			test "$ANSWER_STATE" = "" && exit "$ERROR_USAGE"
 			exit 0
 		fi
 		write_log "Taking all files.";
 		list_all_files
-	elif [ "$LOCAL_SHA1" == "$DEPLOYED_SHA1" ]; then
+	elif [ "$LOCAL_SHA1" = "$DEPLOYED_SHA1" ]; then
 		if [ "$ACTION" = "push" ] && [ ${#GIT_SUBMODULES[@]} -gt 0 ]; then
 			PUSH_SUBMODULES_ONLY=1
 			return
@@ -941,7 +942,7 @@ handle_submodule_sync() {
 	local EXIT_CODE=$?
 
 	# Pushing failed. Submodule may not be initialized
-	if [ "$EXIT_CODE" -eq "$ERROR_DOWNLOAD" ] && [ "$ACTION" == "push" ]; then
+	if [ "$EXIT_CODE" -eq "$ERROR_DOWNLOAD" ] && [ "$ACTION" = "push" ]; then
 		print_info "Could not push $1, trying to init..."
 		ACTION="init" run_submodule_action "$submodule_local_path_value" "$submodule_remote_path_value"
 		check_exit_status "Failed to sync submodules." "$ERROR_UPLOAD"
@@ -1130,11 +1131,11 @@ handle_action() {
 }
 
 set_remote_user() {
-	[ -z $REMOTE_USER ] && REMOTE_USER="$(get_config user)"
+	[ -z "$REMOTE_USER" ] && REMOTE_USER="$(get_config user)"
 }
 
 set_remote_cacert() {
-	[ -z $REMOTE_CACERT ] && REMOTE_CACERT="$(get_config cacert)"
+	[ -z "$REMOTE_CACERT" ] && REMOTE_CACERT="$(get_config cacert)"
 }
 
 set_remote_password() {
@@ -1213,7 +1214,7 @@ set_remotes() {
 
 	local REMOTE_LOGIN=''
 	local DISPLAY_LOGIN=''
-	if [ ! -z "$REMOTE_USER" ]; then
+	if [ -n "$REMOTE_USER" ]; then
 		local ENC_USER="$(urlencode "$REMOTE_USER")"
 		local ENC_PASSWD="$(urlencode "$REMOTE_PASSWD")"
 		REMOTE_LOGIN="$ENC_USER":"$ENC_PASSWD"@
@@ -1263,12 +1264,12 @@ urlencode() {
 
 set_insecure() {
 	local config="$(get_config insecure)"
-	[ -n "$config" ] && INSECURE="$(boolean $config)"
+	[ -n "$config" ] && INSECURE="$(boolean "$config")"
 }
 
 set_curl_disable_epsv() {
 	local config="$(get_config disable-epsv)"
-	[ -n "$config" ] && CURL_DISABLE_EPSV="$(boolean $config)"
+	[ -n "$config" ] && CURL_DISABLE_EPSV="$(boolean "$config")"
 }
 
 set_curl_proxy() {
@@ -1280,8 +1281,9 @@ set_merge_args() {
 	local config="$(get_config no-commit)"
 	[ -n "$config" ] && NO_COMMIT=1
 
+	MERGE_ARGS=()
 	if [ $NO_COMMIT -eq 1 ]; then
-		MERGE_ARGS="$MERGE_ARGS --no-commit --no-ff"
+		MERGE_ARGS+=(--no-commit --no-ff)
 	fi
 }
 
@@ -1320,7 +1322,7 @@ download_remote_updates () {
 	handle_lftp_settings
 
 	local lftp_cd=""
-	[ -n $REMOTE_PATH ] && lftp_cd="cd ${REMOTE_PATH} &&"
+	[ -n "$REMOTE_PATH" ] && lftp_cd="cd ${REMOTE_PATH} &&"
 	local lftp_action="mirror $mirror_options $delete $ignoreall $include $ignore . $SYNCROOT &&"
 	local lftp_exit="wait all && exit"
 
@@ -1399,7 +1401,7 @@ fetch_remote() {
 
 handle_fetch() {
 	local old_sha1=$DEPLOYED_SHA1
-	git checkout $DEPLOYED_SHA1 2> /dev/null
+	git checkout "$DEPLOYED_SHA1" 2> /dev/null
 	# If .gitignore changes between commits, untracked file can remain.
 	# These files are preserved in a stash record.
 	local stash=$(git stash -u)
@@ -1526,7 +1528,7 @@ action_pull() {
 	set_deployed_sha1
 	handle_fetch
 	set_merge_args
-	git merge $MERGE_ARGS $LOCAL_SHA1
+	git merge "${MERGE_ARGS[@]}" "$LOCAL_SHA1"
 }
 
 action_snapshot() {
@@ -1558,7 +1560,7 @@ check_curl_access() {
 
 	local curl_protocol="$REMOTE_PROTOCOL"
 	# The ftpes protocol is FTP + SSL
-	if [ "$curl_protocol" == "ftpes" ]; then
+	if [ "$curl_protocol" = "ftpes" ]; then
 		curl_protocol="ftp"
 		curl --version | grep "^Features: " | grep -qw "SSL"
 		check_exit_status "Protocol '$REMOTE_PROTOCOL' not supported by curl" "$ERROR_DOWNLOAD"
@@ -1574,7 +1576,7 @@ check_remote_access() {
 	curl "${CURL_ARGS[@]}" > /dev/null
 
 	local EXIT_CODE=$?
-	if [ "$REMOTE_PROTOCOL" == "sftp" ] && [ $EXIT_CODE -eq 78 ]; then
+	if [ "$REMOTE_PROTOCOL" = "sftp" ] && [ $EXIT_CODE -eq 78 ]; then
 		write_log "Create $REMOTE_PATH"
 		curl "${CURL_ARGS[@]}" -Q "MKDIR $REMOTE_PATH" > /dev/null
 		EXIT_CODE=$?
@@ -1659,7 +1661,7 @@ do
 		init|push|dirty-upload|catchup|show|download|pull|add-scope|remove-scope|log|snapshot)
 			ACTION="$1"
 			# catch scope
-			if [ "$1" == "add-scope" ] || [ "$1" == "remove-scope" ]; then
+			if [ "$1" = "add-scope" ] || [ "$1" = "remove-scope" ]; then
 				SCOPE="$2"
 				if ! echo "$SCOPE" | grep -q '^[-0-9a-zA-Z_/]*$' ; then
 					print_error_and_die "Invalid scope name. Only these characters are allowed: 0-9 a-z A-Z - _ /" "$ERROR_USAGE"
@@ -1713,7 +1715,7 @@ do
 		-b|--branch*)
 			case "$#,$1" in
 				*,*=*)
-					BRANCH=$(expr 'z$1' : 'z-[^=]*=\(.*\)')
+					BRANCH=$(expr "z$1" : 'z-[^=]*=\(.*\)')
 					;;
 				1,*)
 					print_error_and_die "Too few arguments for option --branch." "$ERROR_MISSING_ARGUMENTS"
@@ -1944,15 +1946,12 @@ do
 			;;
 		--no-verify)
 			EXECUTE_PRE_HOOKS=0
-			shift
 			;;
 		--no-post-hooks)
 			EXECUTE_POST_HOOKS=0
-			shift
 			;;
 		--enable-post-errors)
 			ENABLE_POST_HOOK_ERRORS=1
-			shift
 			;;
 		--auto-init)
 			if [ $AUTO_INIT -eq 0 ]; then
@@ -1983,7 +1982,7 @@ do
 			if [ -n "$1" ]; then
 				if [ -z "$URL" ]; then
 					URL="$1"
-				elif [ "$ACTION" == "snapshot" -a -z "$SNAPSHOT_DIR" ]; then
+				elif [ "$ACTION" = "snapshot" -a -z "$SNAPSHOT_DIR" ]; then
 					SNAPSHOT_DIR="$1"
 				else
 					print_error_and_die "Unrecognised option: $1" "$ERROR_MISSING_ARGUMENTS"
