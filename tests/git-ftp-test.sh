@@ -1219,6 +1219,46 @@ test_submodule() {
 	assertTrue "test failed: $file not there as expected" "remote_file_exists '$submodule/$file'"
 }
 
+test_submodule_inherits_parent_ignore_file() {
+	submodule='sub'
+	mkdir "$submodule"
+	cd "$submodule"
+	mkdir plan
+	touch plan/Dashboard-Widgets.md
+	touch kept.txt
+	git init -q
+	git add .
+	git commit -m 'initial submodule commit' -q
+	cd ..
+	echo '**/plan/**' > .git-ftp-ignore
+	git submodule -q add "/$submodule" > /dev/null
+	git add .git-ftp-ignore
+	git commit -m 'adding submodule' -q
+	init=$($GIT_FTP init)
+	assertTrue "test failed: kept.txt not uploaded" "remote_file_exists '$submodule/kept.txt'"
+	assertFalse "test failed: ignored plan file was uploaded" "remote_file_exists '$submodule/plan/Dashboard-Widgets.md'"
+}
+
+test_submodule_own_ignore_overrides_parent() {
+	submodule='sub'
+	mkdir "$submodule"
+	cd "$submodule"
+	touch parent-ignored.txt
+	touch sub-ignored.txt
+	echo 'sub-ignored.txt' > .git-ftp-ignore
+	git init -q
+	git add .
+	git commit -m 'initial submodule commit' -q
+	cd ..
+	echo 'parent-ignored.txt' > .git-ftp-ignore
+	git submodule -q add "/$submodule" > /dev/null
+	git add .git-ftp-ignore
+	git commit -m 'adding submodule' -q
+	init=$($GIT_FTP init)
+	assertTrue "test failed: parent-ignored.txt missing from submodule (parent ignore must not apply)" "remote_file_exists '$submodule/parent-ignored.txt'"
+	assertFalse "test failed: sub-ignored.txt was uploaded (submodule ignore must apply)" "remote_file_exists '$submodule/sub-ignored.txt'"
+}
+
 test_submodule_netrc() {
 	submodule='sub'
 	file='file.txt'

@@ -380,6 +380,12 @@ Deleting scopes is easy using the `remove-scope` action.
 Add patterns to `.git-ftp-ignore` and all matching file names will be ignored.
 The patterns are interpreted as shell glob patterns since version 1.1.0.
 Before version 1.1.0, patterns were interpreted as regular expressions.
+
+When pushing a superproject with submodules, a submodule without its own
+`.git-ftp-ignore` file will fall back to the superproject's `.git-ftp-ignore`.
+Patterns are passed through verbatim, so use depth-agnostic globs like
+`**/plan/**` if you want them to match inside submodules as well.
+
 Here are some glob pattern examples:
 
 Ignoring everything in a directory named `config`:

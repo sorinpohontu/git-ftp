@@ -283,6 +283,10 @@ run_submodule_action() {
 		export GIT_FTP_PARENT_DEPLOYED_SHA1_FILE="$DEPLOYED_SHA1_FILE"
 		export GIT_FTP_PARENT_REMOTE_ROOT_SET=1
 		export GIT_FTP_PARENT_REMOTE_ROOT="$REMOTE_ROOT"
+		if [ -f "$(pwd)/.git-ftp-ignore" ]; then
+			export GIT_FTP_PARENT_IGNORE_FILE_SET=1
+			export GIT_FTP_PARENT_IGNORE_FILE="$(pwd)/.git-ftp-ignore"
+		fi
 		cd "$submodule_local_path_value" && "$0" "$ACTION" "${args[@]}" "$REMOTE_PROTOCOL://$REMOTE_HOST/${REMOTE_PATH}$submodule_remote_path_value"
 	)
 }
@@ -862,9 +866,16 @@ add_include_file() {
 }
 
 filter_ignore_files() {
-	[ -f '.git-ftp-ignore' ] || return
+	local ignore_file='.git-ftp-ignore'
+	if [ ! -f "$ignore_file" ]; then
+		if is_submodule_parent_settings_inherited && [ "${GIT_FTP_PARENT_IGNORE_FILE_SET:-0}" = "1" ] && [ -f "$GIT_FTP_PARENT_IGNORE_FILE" ]; then
+			ignore_file="$GIT_FTP_PARENT_IGNORE_FILE"
+		else
+			return
+		fi
+	fi
 	local patterns="$TMP_DIR/ignore_tmp"
-	grep -v '^#.*$\|^\s*$' '.git-ftp-ignore' | tr -d '\r' > "$patterns"
+	grep -v '^#.*$\|^\s*$' "$ignore_file" | tr -d '\r' > "$patterns"
 	filter_file "$patterns" "$1"
 	filter_file "$patterns" "$2"
 	rm -f "$patterns"
@@ -1314,8 +1325,14 @@ download_remote_updates () {
 	fi
 
 	ignore=""
+	local ignore_file=''
 	if [ -f '.git-ftp-ignore' ]; then
-		ignore="$(grep -v '^#' .git-ftp-ignore | awk 'NF' | sed 's/^\(.*\)$/--exclude-glob "\1" /' | tr -d '\r\n') "
+		ignore_file='.git-ftp-ignore'
+	elif is_submodule_parent_settings_inherited && [ "${GIT_FTP_PARENT_IGNORE_FILE_SET:-0}" = "1" ] && [ -f "$GIT_FTP_PARENT_IGNORE_FILE" ]; then
+		ignore_file="$GIT_FTP_PARENT_IGNORE_FILE"
+	fi
+	if [ -n "$ignore_file" ]; then
+		ignore="$(grep -v '^#' "$ignore_file" | awk 'NF' | sed 's/^\(.*\)$/--exclude-glob "\1" /' | tr -d '\r\n') "
 	fi
 	ignore+="--exclude=^\.git/ --exclude=^\.git-ftp\.log --exclude=^\.git-ftp-ignore"
 
